@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+requests
+pillow
+python-multipart
+sqlalchemy
+apscheduler
+google-api-python-client
+google-auth
+google-auth-oauthlib
+google-auth-httplib2

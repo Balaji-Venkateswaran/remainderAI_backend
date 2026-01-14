@@ -1,0 +1,22 @@
+[
+  {
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66af99",
+    "applianceType": "string",
+    "brand": "string",
+    "model": "",
+    "reminderDate": "2025-12-25",
+    "title": "string",
+    "notes": "",
+    "completed": false
+  },
+  {
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66af10",
+    "applianceType": "string",
+    "brand": "string",
+    "model": "",
+    "reminderDate": "2025-12-29",
+    "title": "string",
+    "notes": "",
+    "completed": false
+  }
+]

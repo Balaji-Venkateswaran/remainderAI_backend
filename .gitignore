@@ -1,0 +1,16 @@
+# Bytecode / cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Environments
+venv/
+.env
+
+# Local data / secrets
+app.db
+client_secret.json
+
+# OS files
+.DS_Store
+Thumbs.db

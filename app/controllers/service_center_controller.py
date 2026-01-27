@@ -7,14 +7,12 @@ class ServiceCenterController:
     @staticmethod
     async def find_service_centers(appliance_type: str, brand: str):
         try:
-            # 📍 Hardcoded user location (Coimbatore)
             user_lat = 11.0168
             user_lon = 76.9558
 
             appliance = appliance_type.lower()
             brand_lower = brand.lower()
 
-            # ✅ Reliable rule-based mapping for OpenStreetMap
             OSM_SHOP_MAP = {
                 "washing machine": ["appliance", "electronics", "repair"],
                 "refrigerator": ["appliance", "electronics", "repair"],
@@ -59,7 +57,6 @@ class ServiceCenterController:
                     tags = el.get("tags", {})
                     text_blob = " ".join(tags.values()).lower()
 
-                    # 🔍 Scoring logic instead of strict filtering
                     score = 0
 
                     if brand_lower and brand_lower in text_blob:
@@ -74,7 +71,6 @@ class ServiceCenterController:
                     if tags.get("shop") in ["electronics", "repair", "appliance"]:
                         score += 0.5
 
-                    # ❌ Reject weak matches
                     if score < 1:
                         continue
 
@@ -96,7 +92,6 @@ class ServiceCenterController:
                         "matchScore": score
                     })
 
-            # 🔽 Sort by relevance
             centers.sort(
                 key=lambda x: x["matchScore"],
                 reverse=True

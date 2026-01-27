@@ -11,14 +11,7 @@ def calculate_next_service_date_llm(
     brand: str | None = None,
     model: str | None = None
 ) -> dict:
-    """
-    Returns:
-    {
-      nextServiceDate,
-      intervalMonths,
-      reason
-    }
-    """
+
 
     interval_data = GeminiServiceIntervalController.get_service_interval_months(
         appliance_type=appliance_type,

@@ -16,14 +16,6 @@ class GeminiServiceIntervalController:
         brand: str | None = None,
         model: str | None = None
     ) -> dict:
-        """
-        Returns:
-        {
-          "intervalMonths": int,
-          "reason": str
-        }
-        """
-
         prompt = f"""
 You are a home appliance service expert.
 

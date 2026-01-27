@@ -7,10 +7,13 @@ from app.controllers.detect_controller import DetectController
 from app.controllers.service_center_controller import ServiceCenterController
 from app.controllers.model_catalog_controller import ModelCatalogController
 from app.controllers.reminder_controller import ReminderController
+from app.controllers.todo_controller import TodoController
 from app.controllers.google_calendar_controller import GoogleCalendarController
 from app.models.reminder_model import Reminder
+from app.models.todo_model import TodoCreate
 from app.models.google_oauth_token_orm import GoogleOAuthTokenORM
 from app.models.calendar_event_sync_orm import CalendarEventSyncORM
+from app.models.todo_orm import TodoORM
 from uuid import UUID
 
 
@@ -130,9 +133,48 @@ async def create_reminder(
 async def get_reminders(db: Session = Depends(get_db)):
     return ReminderController.get_all_reminders(db)
 
+@app.post("/todos", tags=["Todo List"])
+async def create_todo(
+    todo: TodoCreate,
+    db: Session = Depends(get_db)
+):
+    return TodoController.create_todo(todo, db)
+
 @app.get("/todos", tags=["Todo List"])
-async def get_pending_todos(db: Session = Depends(get_db)):
-    return ReminderController.get_pending_todos(db)
+async def get_pending_todos(
+    completed: bool | None = None,
+    due: bool | None = None,
+    limit: int = 100,
+    offset: int = 0,
+    db: Session = Depends(get_db)
+):
+    return TodoController.get_todos(
+        db,
+        completed=completed,
+        due=due,
+        limit=limit,
+        offset=offset
+    )
+
+@app.put("/todos/{todo_id}/complete", tags=["Todo List"])
+async def complete_todo(
+    todo_id: UUID,
+    db: Session = Depends(get_db)
+):
+    todo = TodoController.complete_todo(todo_id, db)
+    if not todo:
+        return {"error": "Todo not found"}
+    return todo
+
+@app.put("/todos/{todo_id}/incomplete", tags=["Todo List"])
+async def mark_todo_incomplete(
+    todo_id: UUID,
+    db: Session = Depends(get_db)
+):
+    todo = TodoController.mark_incomplete(todo_id, db)
+    if not todo:
+        return {"error": "Todo not found"}
+    return todo
 
 @app.put("/reminders/{reminder_id}/complete", tags=["Reminders"])
 async def complete_reminder(

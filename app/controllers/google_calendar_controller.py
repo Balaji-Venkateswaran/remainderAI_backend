@@ -5,8 +5,8 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from app.models.reminder_orm import ReminderORM
-from app.models.calendar_event_sync_orm import CalendarEventSyncORM
+from app.models.todo_orm import TodoORM
+from app.models.calendar_event_todo_sync_orm import CalendarEventTodoSyncORM
 from app.utils.google_calendar import (
     build_calendar_client,
     fetch_calendar_list,
@@ -58,12 +58,13 @@ class GoogleCalendarController:
         creds = load_google_credentials(db)
         if not creds:
             return {
-                "error": "Google OAuth not connected"
+                "error": "Google OAuth not connected or refresh token missing"
             }
 
         client = build_calendar_client(creds)
         local_tz = datetime.now().astimezone().tzinfo
         synced = 0
+        today = datetime.now(local_tz).date()
 
         for cal in fetch_calendar_list(client):
             calendar_id = cal.get("id")
@@ -80,9 +81,9 @@ class GoogleCalendarController:
 
                 event_updated = event.get("updated")
                 mapping = (
-                    db.query(CalendarEventSyncORM)
-                    .filter(CalendarEventSyncORM.provider == GoogleCalendarController.PROVIDER)
-                    .filter(CalendarEventSyncORM.event_id == event_id)
+                    db.query(CalendarEventTodoSyncORM)
+                    .filter(CalendarEventTodoSyncORM.provider == GoogleCalendarController.PROVIDER)
+                    .filter(CalendarEventTodoSyncORM.event_id == event_id)
                     .first()
                 )
 
@@ -95,44 +96,40 @@ class GoogleCalendarController:
                 notes = generate_event_notes(title, description)
 
                 if mapping:
-                    reminder = db.get(ReminderORM, mapping.reminder_id)
-                    if reminder:
-                        reminder.title = title
-                        reminder.notes = notes
-                        reminder.reminder_date = reminder_date
-                        reminder.model = cal.get("summary", "")
+                    todo = db.get(TodoORM, mapping.todo_id)
+                    if todo:
+                        todo.title = title
+                        todo.notes = notes
+                        todo.due_date = reminder_date
+                        todo.due = reminder_date == today
                     else:
-                        reminder = ReminderORM(
+                        todo = TodoORM(
                             id=str(uuid.uuid4()),
-                            appliance_type="calendar",
-                            brand="google",
-                            model=cal.get("summary", ""),
-                            reminder_date=reminder_date,
                             title=title,
                             notes=notes,
-                            completed=False
+                            due_date=reminder_date,
+                            completed=False,
+                            due=reminder_date == today
                         )
-                        db.add(reminder)
+                        db.add(todo)
                         db.flush()
-                        mapping.reminder_id = reminder.id
+                        mapping.todo_id = todo.id
                 else:
-                    reminder = ReminderORM(
+                    todo = TodoORM(
                         id=str(uuid.uuid4()),
-                        appliance_type="calendar",
-                        brand="google",
-                        model=cal.get("summary", ""),
-                        reminder_date=reminder_date,
                         title=title,
                         notes=notes,
-                        completed=False
+                        due_date=reminder_date,
+                        completed=False,
+                        due=reminder_date == today
                     )
-                    db.add(reminder)
+                    db.add(todo)
                     db.flush()
-                    mapping = CalendarEventSyncORM(
+                    mapping = CalendarEventTodoSyncORM(
                         provider=GoogleCalendarController.PROVIDER,
                         event_id=event_id,
                         calendar_id=calendar_id,
-                        reminder_id=reminder.id,
+                        todo_id=todo.id,
                         event_updated=event_updated
                     )
                     db.add(mapping)

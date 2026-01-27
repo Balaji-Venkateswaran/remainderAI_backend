@@ -2,39 +2,58 @@ from datetime import date
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from app.db import SessionLocal
-from app.models.reminder_orm import ReminderORM
+from sqlalchemy import or_
+
+from app.controllers.google_calendar_controller import GoogleCalendarController
+from app.models.todo_orm import TodoORM
 
 
-def _log_due_reminders():
+def _mark_due_todos():
     today = date.today()
     db = SessionLocal()
     try:
-        reminders = (
-            db.query(ReminderORM)
-            .filter(ReminderORM.completed.is_(False))
-            .filter(ReminderORM.reminder_date <= today)
-            .order_by(ReminderORM.reminder_date.asc())
+        db.query(TodoORM).filter(
+            or_(
+                TodoORM.completed.is_(True),
+                TodoORM.due_date != today
+            )
+        ).update(
+            {TodoORM.due: False},
+            synchronize_session=False
+        )
+        due_todos = (
+            db.query(TodoORM)
+            .filter(TodoORM.completed.is_(False))
+            .filter(TodoORM.due_date == today)
             .all()
         )
-        if not reminders:
-            return
-        for r in reminders:
-            print(
-                f"[REMINDER] {r.title} | {r.appliance_type} {r.brand} "
-                f"| due {r.reminder_date} | id {r.id}"
-            )
+        for todo in due_todos:
+            todo.due = True
+        db.commit()
+    finally:
+        db.close()
+
+
+def _sync_google_calendar():
+    db = SessionLocal()
+    try:
+        GoogleCalendarController.sync_all_calendars(db)
     finally:
         db.close()
 
 
 def start_scheduler():
     scheduler = BackgroundScheduler()
-    # Run daily at 09:00 local time
     scheduler.add_job(
-        _log_due_reminders,
+        _mark_due_todos,
         trigger="cron",
         hour=9,
         minute=0
+    )
+    scheduler.add_job(
+        _sync_google_calendar,
+        trigger="interval",
+        minutes=5
     )
     scheduler.start()
     return scheduler

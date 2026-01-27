@@ -52,7 +52,18 @@ def load_google_credentials(db: Session) -> Credentials | None:
         return None
 
     token = json.loads(record.token_json)
-    creds = Credentials.from_authorized_user_info(token, SCOPES)
+    required_fields = ("token", "refresh_token", "token_uri", "client_id", "client_secret")
+    if not all(token.get(field) for field in required_fields):
+        return None
+
+    creds = Credentials(
+        token=token.get("token"),
+        refresh_token=token.get("refresh_token"),
+        token_uri=token.get("token_uri"),
+        client_id=token.get("client_id"),
+        client_secret=token.get("client_secret"),
+        scopes=SCOPES
+    )
     if creds and creds.expired and creds.refresh_token:
         creds.refresh(Request())
         save_google_token(db, json.loads(creds.to_json()))

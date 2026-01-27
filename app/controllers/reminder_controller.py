@@ -54,15 +54,25 @@ class ReminderController:
         return [ReminderController._to_schema(r) for r in reminders]
 
     @staticmethod
-    def get_pending_todos(db: Session) -> List[Reminder]:
-        today = date.today()
-        reminders = (
-            db.query(ReminderORM)
-            .filter(ReminderORM.completed.is_(False))
-            .filter(ReminderORM.reminder_date <= today)
+    def get_pending_todos(
+        db: Session,
+        completed: bool | None = None,
+        limit: int = 100,
+        offset: int = 0
+    ) -> List[Reminder]:
+        query = db.query(ReminderORM)
+        if completed is not None:
+            query = query.filter(ReminderORM.completed.is_(completed))
+        query = (
+            query
+            .order_by(ReminderORM.completed.asc())
             .order_by(ReminderORM.reminder_date.asc())
-            .all()
         )
+        if offset:
+            query = query.offset(offset)
+        if limit:
+            query = query.limit(limit)
+        reminders = query.all()
         return [ReminderController._to_schema(r) for r in reminders]
 
     @staticmethod

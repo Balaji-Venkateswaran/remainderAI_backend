@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import List
 from uuid import UUID
 
@@ -9,6 +9,30 @@ from app.models.todo_orm import TodoORM
 
 
 class TodoController:
+
+    @staticmethod
+    def _normalize_due_date(raw: str | None) -> str:
+        if not raw:
+            return date.today().isoformat()
+        try:
+            if "T" in raw:
+                parsed = datetime.fromisoformat(raw)
+                return parsed.isoformat(timespec="minutes")
+            parsed_date = date.fromisoformat(raw)
+            return parsed_date.isoformat()
+        except ValueError:
+            return date.today().isoformat()
+
+    @staticmethod
+    def _extract_due_day(raw: str | None) -> date | None:
+        if not raw:
+            return None
+        try:
+            if "T" in raw:
+                return datetime.fromisoformat(raw).date()
+            return date.fromisoformat(raw)
+        except ValueError:
+            return None
 
     @staticmethod
     def _to_schema(todo: TodoORM) -> Todo:
@@ -23,8 +47,9 @@ class TodoController:
 
     @staticmethod
     def create_todo(todo: TodoCreate, db: Session) -> Todo:
-        due_date = todo.dueDate or date.today()
-        is_due_today = due_date == date.today()
+        due_date = TodoController._normalize_due_date(todo.dueDate)
+        due_day = TodoController._extract_due_day(due_date)
+        is_due_today = due_day == date.today()
         record = TodoORM(
             title=todo.title,
             notes=todo.notes or "",
@@ -80,7 +105,8 @@ class TodoController:
         if not todo:
             return None
         todo.completed = False
-        todo.due = todo.due_date <= date.today()
+        due_day = TodoController._extract_due_day(todo.due_date)
+        todo.due = due_day <= date.today() if due_day else False
         db.commit()
         db.refresh(todo)
         return TodoController._to_schema(todo)

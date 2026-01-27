@@ -2,7 +2,7 @@ from datetime import date
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from app.db import SessionLocal
-from sqlalchemy import or_
+from sqlalchemy import not_, or_
 
 from app.controllers.google_calendar_controller import GoogleCalendarController
 from app.models.todo_orm import TodoORM
@@ -10,12 +10,13 @@ from app.models.todo_orm import TodoORM
 
 def _mark_due_todos():
     today = date.today()
+    today_key = today.isoformat()
     db = SessionLocal()
     try:
         db.query(TodoORM).filter(
             or_(
                 TodoORM.completed.is_(True),
-                TodoORM.due_date != today
+                not_(TodoORM.due_date.startswith(today_key))
             )
         ).update(
             {TodoORM.due: False},
@@ -24,7 +25,7 @@ def _mark_due_todos():
         due_todos = (
             db.query(TodoORM)
             .filter(TodoORM.completed.is_(False))
-            .filter(TodoORM.due_date == today)
+            .filter(TodoORM.due_date.startswith(today_key))
             .all()
         )
         for todo in due_todos:

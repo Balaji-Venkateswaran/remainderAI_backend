@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime
+from datetime import date, datetime
 import uuid
 
 from sqlalchemy.orm import Session
@@ -78,6 +78,7 @@ class GoogleCalendarController:
                 start_dt = parse_google_event_date(event)
                 if not start_dt:
                     continue
+                start_meta = event.get("start", {})
 
                 event_updated = event.get("updated")
                 mapping = (
@@ -90,10 +91,15 @@ class GoogleCalendarController:
                 if mapping and mapping.event_updated == event_updated:
                     continue
 
-                reminder_date = start_dt.astimezone(local_tz).date()
+                if "date" in start_meta:
+                    reminder_date = start_meta["date"]
+                else:
+                    local_start = start_dt.astimezone(local_tz).replace(tzinfo=None)
+                    reminder_date = local_start.isoformat(timespec="minutes")
                 title = event.get("summary") or "Calendar Event"
                 description = event.get("description")
                 notes = generate_event_notes(title, description)
+                due_day = GoogleCalendarController._extract_due_day(reminder_date)
 
                 if mapping:
                     todo = db.get(TodoORM, mapping.todo_id)
@@ -101,7 +107,7 @@ class GoogleCalendarController:
                         todo.title = title
                         todo.notes = notes
                         todo.due_date = reminder_date
-                        todo.due = reminder_date == today
+                        todo.due = due_day == today
                     else:
                         todo = TodoORM(
                             id=str(uuid.uuid4()),
@@ -109,7 +115,7 @@ class GoogleCalendarController:
                             notes=notes,
                             due_date=reminder_date,
                             completed=False,
-                            due=reminder_date == today
+                            due=due_day == today
                         )
                         db.add(todo)
                         db.flush()
@@ -121,7 +127,7 @@ class GoogleCalendarController:
                         notes=notes,
                         due_date=reminder_date,
                         completed=False,
-                        due=reminder_date == today
+                        due=due_day == today
                     )
                     db.add(todo)
                     db.flush()
@@ -141,3 +147,14 @@ class GoogleCalendarController:
 
         db.commit()
         return {"synced": synced}
+
+    @staticmethod
+    def _extract_due_day(raw: str | None) -> date | None:
+        if not raw:
+            return None
+        try:
+            if "T" in raw:
+                return datetime.fromisoformat(raw).date()
+            return date.fromisoformat(raw)
+        except ValueError:
+            return None

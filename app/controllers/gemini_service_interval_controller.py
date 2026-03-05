@@ -9,7 +9,6 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 
 class GeminiServiceIntervalController:
-
     @staticmethod
     def get_service_interval_months(
         appliance_type: str,

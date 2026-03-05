@@ -4,7 +4,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.models.todo_model import Todo, TodoCreate
+from app.models.todo_model import Todo, TodoCreate, TodoUpdate
 from app.models.todo_orm import TodoORM
 
 
@@ -42,7 +42,8 @@ class TodoController:
             notes=todo.notes,
             dueDate=todo.due_date,
             completed=todo.completed,
-            due=todo.due
+            due=todo.due,
+            source=todo.source
         )
 
     @staticmethod
@@ -55,7 +56,8 @@ class TodoController:
             notes=todo.notes or "",
             due_date=due_date,
             completed=False,
-            due=is_due_today
+            due=is_due_today,
+            source=todo.source or "todo"
         )
         db.add(record)
         db.commit()
@@ -67,6 +69,7 @@ class TodoController:
         db: Session,
         completed: bool | None = None,
         due: bool | None = None,
+        source: str | None = None,
         limit: int = 100,
         offset: int = 0
     ) -> List[Todo]:
@@ -75,6 +78,9 @@ class TodoController:
             query = query.filter(TodoORM.completed.is_(completed))
         if due is not None:
             query = query.filter(TodoORM.due.is_(due))
+        normalized_source = TodoController._normalize_source(source)
+        if normalized_source:
+            query = query.filter(TodoORM.source == normalized_source)
         query = (
             query
             .order_by(TodoORM.completed.asc())
@@ -110,3 +116,45 @@ class TodoController:
         db.commit()
         db.refresh(todo)
         return TodoController._to_schema(todo)
+
+    @staticmethod
+    def update_due_date(
+        todo_id: UUID,
+        payload: TodoUpdate,
+        db: Session
+    ) -> Todo | None:
+        todo = db.get(TodoORM, str(todo_id))
+        if not todo:
+            return None
+        if payload.dueDate is not None:
+            normalized = TodoController._normalize_due_date(payload.dueDate)
+            todo.due_date = normalized
+            due_day = TodoController._extract_due_day(normalized)
+            todo.due = True if todo.completed else (due_day <= date.today() if due_day else False)
+        if payload.notes is not None:
+            todo.notes = payload.notes
+        if payload.source is not None:
+            todo.source = payload.source
+        db.commit()
+        db.refresh(todo)
+        return TodoController._to_schema(todo)
+
+    @staticmethod
+    def delete_todo(todo_id: UUID, db: Session) -> bool:
+        todo = db.get(TodoORM, str(todo_id))
+        if not todo:
+            return False
+        db.delete(todo)
+        db.commit()
+        return True
+
+    @staticmethod
+    def _normalize_source(source: str | None) -> str | None:
+        if not source:
+            return None
+        normalized = source.strip().lower()
+        if normalized in {"service center", "service_center"}:
+            return "service"
+        if normalized in {"todos", "task", "tasks"}:
+            return "todo"
+        return normalized

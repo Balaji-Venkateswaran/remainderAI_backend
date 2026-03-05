@@ -13,3 +13,4 @@ class TodoORM(Base):
     due_date = Column(String, nullable=False)
     completed = Column(Boolean, default=False, nullable=False)
     due = Column(Boolean, default=False, nullable=False)
+    source = Column(String, nullable=False, default="todo")

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Depends
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import json
 from sqlalchemy.orm import Session
@@ -9,8 +9,9 @@ from app.controllers.model_catalog_controller import ModelCatalogController
 from app.controllers.reminder_controller import ReminderController
 from app.controllers.todo_controller import TodoController
 from app.controllers.google_calendar_controller import GoogleCalendarController
+from app.voice.router import router as voice_router
 from app.models.reminder_model import Reminder
-from app.models.todo_model import TodoCreate
+from app.models.todo_model import TodoCreate, TodoUpdate
 from app.models.google_oauth_token_orm import GoogleOAuthTokenORM
 from app.models.calendar_event_sync_orm import CalendarEventSyncORM
 from app.models.todo_orm import TodoORM
@@ -29,7 +30,7 @@ _scheduler = None
 
 app = FastAPI(
     title="Smart Appliance AI",
-    description="Gemini Vision → LLaVA-guided OpenStreetMap service center discovery",
+    description="Gemini Vision ??? LLaVA-guided OpenStreetMap service center discovery",
     version="1.0.0"
 )
 
@@ -39,6 +40,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(voice_router)
 
 
 @app.on_event("startup")
@@ -74,6 +77,22 @@ async def find_service_centers(
     return await ServiceCenterController.find_service_centers(
         appliance_type=appliance_type,
         brand=brand
+    )
+
+@app.get("/find-local-services", tags=["Local Services"])
+async def find_local_services(
+    query: str,
+    lat: float | None = None,
+    lon: float | None = None,
+    limit_per_category: int = 3,
+    radius_m: int = 6000
+):
+    return await ServiceCenterController.find_local_services_llm(
+        query=query,
+        user_lat=lat,
+        user_lon=lon,
+        limit_per_category=limit_per_category,
+        radius_m=radius_m
     )
 
 @app.post("/detect-appliance-and-centers", tags=["Smart Flow"])
@@ -144,6 +163,7 @@ async def create_todo(
 async def get_pending_todos(
     completed: bool | None = None,
     due: bool | None = None,
+    source: str | None = None,
     limit: int = 100,
     offset: int = 0,
     db: Session = Depends(get_db)
@@ -152,6 +172,7 @@ async def get_pending_todos(
         db,
         completed=completed,
         due=due,
+        source=source,
         limit=limit,
         offset=offset
     )
@@ -163,7 +184,7 @@ async def complete_todo(
 ):
     todo = TodoController.complete_todo(todo_id, db)
     if not todo:
-        return {"error": "Todo not found"}
+        raise HTTPException(status_code=404, detail="Todo not found")
     return todo
 
 @app.put("/todos/{todo_id}/incomplete", tags=["Todo List"])
@@ -173,8 +194,29 @@ async def mark_todo_incomplete(
 ):
     todo = TodoController.mark_incomplete(todo_id, db)
     if not todo:
-        return {"error": "Todo not found"}
+        raise HTTPException(status_code=404, detail="Todo not found")
     return todo
+
+@app.put("/todos/{todo_id}", tags=["Todo List"])
+async def update_todo_due_date(
+    todo_id: UUID,
+    payload: TodoUpdate,
+    db: Session = Depends(get_db)
+):
+    todo = TodoController.update_due_date(todo_id, payload, db)
+    if not todo:
+        raise HTTPException(status_code=404, detail="Todo not found")
+    return todo
+
+@app.delete("/todos/{todo_id}", tags=["Todo List"])
+async def delete_todo(
+    todo_id: UUID,
+    db: Session = Depends(get_db)
+):
+    deleted = TodoController.delete_todo(todo_id, db)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Todo not found")
+    return {"deleted": True}
 
 @app.put("/reminders/{reminder_id}/complete", tags=["Reminders"])
 async def complete_reminder(
@@ -183,7 +225,7 @@ async def complete_reminder(
 ):
     reminder = ReminderController.complete_reminder(reminder_id, db)
     if not reminder:
-        return {"error": "Reminder not found"}
+        raise HTTPException(status_code=404, detail="Reminder not found")
     return reminder
 
 @app.get("/google/oauth/start", tags=["Google Calendar"])
@@ -229,4 +271,5 @@ async def calculate_service_date_llm(
         "reason": result["reason"],
         "nextServiceDate": result["nextServiceDate"]
     }
+
 

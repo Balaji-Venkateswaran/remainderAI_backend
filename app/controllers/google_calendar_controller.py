@@ -108,6 +108,7 @@ class GoogleCalendarController:
                         todo.notes = notes
                         todo.due_date = reminder_date
                         todo.due = due_day == today
+                        todo.source = "calendar"
                     else:
                         todo = TodoORM(
                             id=str(uuid.uuid4()),
@@ -115,7 +116,8 @@ class GoogleCalendarController:
                             notes=notes,
                             due_date=reminder_date,
                             completed=False,
-                            due=due_day == today
+                            due=due_day == today,
+                            source="calendar"
                         )
                         db.add(todo)
                         db.flush()
@@ -127,7 +129,8 @@ class GoogleCalendarController:
                         notes=notes,
                         due_date=reminder_date,
                         completed=False,
-                        due=due_day == today
+                        due=due_day == today,
+                        source="calendar"
                     )
                     db.add(todo)
                     db.flush()

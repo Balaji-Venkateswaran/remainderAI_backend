@@ -1,4 +1,6 @@
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
+import os
+
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 import json
 from sqlalchemy.orm import Session
@@ -95,6 +97,18 @@ async def find_local_services(
         radius_m=radius_m
     )
 
+@app.get("/local-store-suggestions", tags=["Local Services"])
+async def local_store_suggestions(
+    query: str = "",
+    limit: int = 8,
+    db: Session = Depends(get_db)
+):
+    return TodoController.get_saved_local_store_suggestions(
+        db=db,
+        query=query,
+        limit=limit
+    )
+
 @app.post("/detect-appliance-and-centers", tags=["Smart Flow"])
 async def detect_appliance_and_centers(image: UploadFile = File(...)):
  
@@ -176,6 +190,47 @@ async def get_pending_todos(
         limit=limit,
         offset=offset
     )
+
+@app.get("/todos/{todo_id}", tags=["Todo List"])
+async def get_todo(
+    todo_id: UUID,
+    db: Session = Depends(get_db)
+):
+    todo = TodoController.get_todo(todo_id, db)
+    if not todo:
+        raise HTTPException(status_code=404, detail="Todo not found")
+    return todo
+
+@app.get("/todos/{todo_id}/share-link", tags=["Todo List"])
+async def get_todo_share_link(
+    todo_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    payload = TodoController.get_share_payload(todo_id, db)
+    if not payload:
+        raise HTTPException(status_code=404, detail="Todo not found")
+
+    public_base_url = os.getenv("PUBLIC_APP_URL", "").strip().rstrip("/")
+    if public_base_url:
+        share_url = f"{public_base_url}/shared/todos/{todo_id}"
+    else:
+        share_url = str(request.url_for("get_shared_todo", todo_id=str(todo_id)))
+
+    return {
+        "shareUrl": share_url,
+        "todo": payload,
+    }
+
+@app.get("/shared/todos/{todo_id}", tags=["Todo Share"], name="get_shared_todo")
+async def get_shared_todo(
+    todo_id: UUID,
+    db: Session = Depends(get_db)
+):
+    payload = TodoController.get_share_payload(todo_id, db)
+    if not payload:
+        raise HTTPException(status_code=404, detail="Todo not found")
+    return payload
 
 @app.put("/todos/{todo_id}/complete", tags=["Todo List"])
 async def complete_todo(

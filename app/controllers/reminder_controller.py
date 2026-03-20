@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 from app.models.reminder_model import Reminder
 from app.models.reminder_orm import ReminderORM
 
-class ReminderController:
 
+class ReminderController:
     @staticmethod
     def _to_schema(reminder: ReminderORM) -> Reminder:
         return Reminder(
@@ -19,15 +19,13 @@ class ReminderController:
             reminderDate=reminder.reminder_date,
             title=reminder.title,
             notes=reminder.notes,
-            completed=reminder.completed
+            completed=reminder.completed,
         )
 
     @staticmethod
     def create_reminder(reminder: Reminder, db: Session):
         if reminder.reminderDate < date.today():
-            return {
-                "error": "Reminder date must be today or a future date"
-            }
+            return {"error": "Reminder date must be today or a future date"}
 
         record = ReminderORM(
             id=str(reminder.id),
@@ -37,7 +35,7 @@ class ReminderController:
             reminder_date=reminder.reminderDate,
             title=reminder.title,
             notes=reminder.notes or "",
-            completed=reminder.completed
+            completed=reminder.completed,
         )
         db.add(record)
         db.commit()
@@ -46,42 +44,37 @@ class ReminderController:
 
     @staticmethod
     def get_all_reminders(db: Session) -> List[Reminder]:
-        reminders = (
-            db.query(ReminderORM)
-            .order_by(ReminderORM.reminder_date.asc())
-            .all()
-        )
-        return [ReminderController._to_schema(r) for r in reminders]
+        reminders = db.query(ReminderORM).order_by(ReminderORM.reminder_date.asc()).all()
+        return [ReminderController._to_schema(reminder) for reminder in reminders]
 
     @staticmethod
     def get_pending_todos(
         db: Session,
         completed: bool | None = None,
         limit: int = 100,
-        offset: int = 0
+        offset: int = 0,
     ) -> List[Reminder]:
         query = db.query(ReminderORM)
         if completed is not None:
             query = query.filter(ReminderORM.completed.is_(completed))
-        query = (
-            query
-            .order_by(ReminderORM.completed.asc())
-            .order_by(ReminderORM.reminder_date.asc())
-        )
+
+        query = query.order_by(ReminderORM.completed.asc()).order_by(ReminderORM.reminder_date.asc())
+
         if offset:
             query = query.offset(offset)
         if limit:
             query = query.limit(limit)
+
         reminders = query.all()
-        return [ReminderController._to_schema(r) for r in reminders]
+        return [ReminderController._to_schema(reminder) for reminder in reminders]
 
     @staticmethod
     def complete_reminder(reminder_id: UUID, db: Session):
         reminder = db.get(ReminderORM, str(reminder_id))
         if not reminder:
             return None
+
         reminder.completed = True
         db.commit()
         db.refresh(reminder)
         return ReminderController._to_schema(reminder)
-        return None
